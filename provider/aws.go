@@ -36,44 +36,29 @@ const (
 	maxChangeCount       = 4000
 )
 
-var (
-	// see: https://docs.aws.amazon.com/general/latest/gr/rande.html#elb_region
-	canonicalHostedZones = map[string]string{
-		// Application Load Balancers and Classic Load Balancers
-		"us-east-2.elb.amazonaws.com":      "Z3AADJGX6KTTL2",
-		"us-east-1.elb.amazonaws.com":      "Z35SXDOTRQ7X7K",
-		"us-west-1.elb.amazonaws.com":      "Z368ELLRRE2KJ0",
-		"us-west-2.elb.amazonaws.com":      "Z1H1FL5HABSF5",
-		"ca-central-1.elb.amazonaws.com":   "ZQSVJUPU6J1EY",
-		"ap-south-1.elb.amazonaws.com":     "ZP97RAFLXTNZK",
-		"ap-northeast-2.elb.amazonaws.com": "ZWKZPGTI48KDX",
-		"ap-northeast-3.elb.amazonaws.com": "Z5LXEXXYW11ES",
-		"ap-southeast-1.elb.amazonaws.com": "Z1LMS91P8CMLE5",
-		"ap-southeast-2.elb.amazonaws.com": "Z1GM3OXH4ZPM65",
-		"ap-northeast-1.elb.amazonaws.com": "Z14GRHDCWA56QT",
-		"eu-central-1.elb.amazonaws.com":   "Z215JYRZR1TBD5",
-		"eu-west-1.elb.amazonaws.com":      "Z32O12XQLNTSW2",
-		"eu-west-2.elb.amazonaws.com":      "ZHURV8PSTC4K8",
-		"eu-west-3.elb.amazonaws.com":      "Z3Q77PNBQS71R4",
-		"sa-east-1.elb.amazonaws.com":      "Z2P70J7HTTTPLU",
-		// Network Load Balancers
-		"elb.us-east-2.amazonaws.com":      "ZLMOA37VPKANP",
-		"elb.us-east-1.amazonaws.com":      "Z26RNL4JYFTOTI",
-		"elb.us-west-1.amazonaws.com":      "Z24FKFUX50B4VW",
-		"elb.us-west-2.amazonaws.com":      "Z18D5FSROUN65G",
-		"elb.ca-central-1.amazonaws.com":   "Z2EPGBW3API2WT",
-		"elb.ap-south-1.amazonaws.com":     "ZVDDRBQ08TROA",
-		"elb.ap-northeast-2.amazonaws.com": "ZIBE1TIR4HY56",
-		"elb.ap-southeast-1.amazonaws.com": "ZKVM4W9LS7TM",
-		"elb.ap-southeast-2.amazonaws.com": "ZCT6FZBF4DROD",
-		"elb.ap-northeast-1.amazonaws.com": "Z31USIVHYNEOWT",
-		"elb.eu-central-1.amazonaws.com":   "Z3F0SRJ5LGBH90",
-		"elb.eu-west-1.amazonaws.com":      "Z2IFOLAFXWLO4F",
-		"elb.eu-west-2.amazonaws.com":      "ZD4D7Y8KGAS4G",
-		"elb.eu-west-3.amazonaws.com":      "Z1CMS0P5QUZ6D5",
-		"elb.sa-east-1.amazonaws.com":      "ZTK26PT1VY4CU",
-	}
-)
+type hostedZone struct {
+	region, albID, nlbID string
+}
+
+// see: https://docs.aws.amazon.com/general/latest/gr/rande.html#elb_region
+var canonicalHostedZones = []hostedZone{
+	{region: "us-east-2", albID: "Z3AADJGX6KTTL2", nlbID: "ZLMOA37VPKANP"},
+	{region: "us-east-1", albID: "Z35SXDOTRQ7X7K", nlbID: "Z26RNL4JYFTOTI"},
+	{region: "us-west-1", albID: "Z368ELLRRE2KJ0", nlbID: "Z24FKFUX50B4VW"},
+	{region: "us-west-2", albID: "Z1H1FL5HABSF5", nlbID: "Z18D5FSROUN65G"},
+	{region: "ca-central-1", albID: "ZQSVJUPU6J1EY", nlbID: "Z2EPGBW3API2WT"},
+	{region: "ap-south-1", albID: "ZP97RAFLXTNZK", nlbID: "ZVDDRBQ08TROA"},
+	{region: "ap-northeast-2", albID: "ZWKZPGTI48KDX", nlbID: "ZIBE1TIR4HY56"},
+	{region: "ap-northeast-3", albID: "Z5LXEXXYW11ES"},
+	{region: "ap-southeast-1", albID: "Z1LMS91P8CMLE5", nlbID: "ZKVM4W9LS7TM"},
+	{region: "ap-southeast-2", albID: "Z1GM3OXH4ZPM65", nlbID: "ZCT6FZBF4DROD"},
+	{region: "ap-northeast-1", albID: "Z14GRHDCWA56QT", nlbID: "Z31USIVHYNEOWT"},
+	{region: "eu-central-1", albID: "Z215JYRZR1TBD5", nlbID: "Z3F0SRJ5LGBH90"},
+	{region: "eu-west-1", albID: "Z32O12XQLNTSW2", nlbID: "Z2IFOLAFXWLO4F"},
+	{region: "eu-west-2", albID: "ZHURV8PSTC4K8", nlbID: "ZD4D7Y8KGAS4G"},
+	{region: "eu-west-3", albID: "Z3Q77PNBQS71R4", nlbID: "Z1CMS0P5QUZ6D5"},
+	{region: "sa-east-1", albID: "Z2P70J7HTTTPLU", nlbID: "ZTK26PT1VY4CU"},
+}
 
 // Route53API is the subset of the AWS Route53 API that we actually use.  Add methods as required. Signatures must match exactly.
 // mostly taken from: https://github.com/kubernetes/kubernetes/blob/853167624edb6bc0cfdcdfb88e746e178f5db36c/federation/pkg/dnsprovider/providers/aws/route53/stubs/route53api.go
@@ -405,11 +390,15 @@ func newChange(action string, endpoint *endpoint.Endpoint) *route53.Change {
 
 	if isAWSLoadBalancer(endpoint) {
 		change.ResourceRecordSet.Type = aws.String(route53.RRTypeA)
+		zoneID, region := canonicalHostedZone(endpoint.Targets[0])
 		change.ResourceRecordSet.AliasTarget = &route53.AliasTarget{
 			DNSName:              aws.String(endpoint.Targets[0]),
-			HostedZoneId:         aws.String(canonicalHostedZone(endpoint.Targets[0])),
+			HostedZoneId:         aws.String(zoneID),
 			EvaluateTargetHealth: aws.Bool(evaluateTargetHealth),
 		}
+		change.ResourceRecordSet.Region = aws.String(region)
+		change.ResourceRecordSet.SetIdentifier = aws.String(region)
+
 	} else {
 		change.ResourceRecordSet.Type = aws.String(endpoint.RecordType)
 		if !endpoint.RecordTTL.IsConfigured() {
@@ -458,19 +447,23 @@ func suitableZones(hostname string, zones map[string]*route53.HostedZone) []*rou
 // isAWSLoadBalancer determines if a given hostname belongs to an AWS load balancer.
 func isAWSLoadBalancer(ep *endpoint.Endpoint) bool {
 	if ep.RecordType == endpoint.RecordTypeCNAME {
-		return canonicalHostedZone(ep.Targets[0]) != ""
+		zoneID, _ := canonicalHostedZone(ep.Targets[0])
+		return zoneID != ""
 	}
 
 	return false
 }
 
-// canonicalHostedZone returns the matching canonical zone for a given hostname.
-func canonicalHostedZone(hostname string) string {
-	for suffix, zone := range canonicalHostedZones {
-		if strings.HasSuffix(hostname, suffix) {
-			return zone
+// canonicalHostedZone returns the matching canonical zone and the region for a given hostname.
+func canonicalHostedZone(hostname string) (string, string) {
+	for _, zone := range canonicalHostedZones {
+		if strings.HasSuffix(hostname, zone.region+".elb.amazonaws.com") {
+			return zone.albID, zone.region
+		}
+		if strings.HasSuffix(hostname, "elb."+zone.region+".amazonaws.com") {
+			return zone.nlbID, zone.region
 		}
 	}
 
-	return ""
+	return "", ""
 }

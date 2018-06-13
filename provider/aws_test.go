@@ -692,8 +692,10 @@ func TestAWSCreateRecordsWithALIAS(t *testing.T) {
 				EvaluateTargetHealth: aws.Bool(true),
 				HostedZoneId:         aws.String("Z215JYRZR1TBD5"),
 			},
-			Name: aws.String("create-test.zone-1.ext-dns-test-2.teapot.zalan.do."),
-			Type: aws.String(endpoint.RecordTypeA),
+			Name:          aws.String("create-test.zone-1.ext-dns-test-2.teapot.zalan.do."),
+			Type:          aws.String(endpoint.RecordTypeA),
+			Region:        aws.String("eu-central-1"),
+			SetIdentifier: aws.String("eu-central-1"),
 		},
 	})
 }
@@ -756,7 +758,7 @@ func TestAWSCanonicalHostedZone(t *testing.T) {
 		// No Load Balancer
 		{"foo.example.org", ""},
 	} {
-		zone := canonicalHostedZone(tc.hostname)
+		zone, _ := canonicalHostedZone(tc.hostname)
 		assert.Equal(t, tc.expected, zone)
 	}
 }
